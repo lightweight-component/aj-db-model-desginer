@@ -68,6 +68,7 @@ const zoom = ref<number>(1);
 const pan = ref<DiagramPoint>({ x: 0, y: 0 });
 const canvasSize = ref<DiagramPoint>({ x: 0, y: 0 });
 const isFullscreen = ref<boolean>(false);
+const spacePressed = ref<boolean>(false);
 const drag = ref<DragState | null>(null);
 const panning = ref<PanState | null>(null);
 const selection = ref<SelectionState | null>(null);
@@ -164,7 +165,7 @@ function beginDrag(event: PointerEvent, tableId: string): void {
 
 /** Starts panning when the user drags an empty part of the canvas. */
 function beginPan(event: PointerEvent): void {
-  if (event.button === 0) {
+  if (event.button === 0 && !spacePressed.value) {
     const point: DiagramPoint = toDiagramPoint(event);
     selection.value = { start: point, end: point, additive: event.ctrlKey || event.metaKey };
     canvasRef.value?.setPointerCapture(event.pointerId);
@@ -172,7 +173,7 @@ function beginPan(event: PointerEvent): void {
     return;
   }
 
-  if (event.button !== 1 && event.button !== 2)
+  if (event.button !== 1 && event.button !== 2 && !(event.button === 0 && spacePressed.value))
     return;
 
   panning.value = {
@@ -371,6 +372,62 @@ function handleWheel(event: WheelEvent): void {
   };
 }
 
+/** Changes zoom around the visible canvas centre. */
+function setZoom(nextZoom: number): void {
+  const canvas: HTMLElement | null = canvasRef.value;
+
+  if (!canvas)
+    return;
+
+  const boundedZoom: number = Math.min(1.8, Math.max(.45, nextZoom));
+  const centre: DiagramPoint = {
+    x: (canvas.clientWidth / 2 - pan.value.x) / zoom.value,
+    y: (canvas.clientHeight / 2 - pan.value.y) / zoom.value,
+  };
+  zoom.value = boundedZoom;
+  pan.value = {
+    x: canvas.clientWidth / 2 - centre.x * boundedZoom,
+    y: canvas.clientHeight / 2 - centre.y * boundedZoom,
+  };
+}
+
+/** Restores the default canvas transform. */
+function resetView(): void {
+  zoom.value = 1;
+  pan.value = { x: 0, y: 0 };
+}
+
+/** Enters or exits browser fullscreen for the canvas workspace. */
+async function toggleFullscreen(): Promise<void> {
+  if (document.fullscreenElement)
+    await document.exitFullscreen();
+  else
+    await canvasRef.value?.requestFullscreen();
+}
+
+/** Synchronizes the fullscreen button label with browser state. */
+function handleFullscreenChange(): void {
+  isFullscreen.value = document.fullscreenElement === canvasRef.value;
+}
+
+/** Centres the canvas on the diagram coordinate clicked in the minimap. */
+function navigateMinimap(event: PointerEvent): void {
+  const canvas: HTMLElement | null = canvasRef.value;
+  const bounds: DOMRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+
+  if (!canvas)
+    return;
+
+  const target: DiagramPoint = {
+    x: (event.clientX - bounds.left) / minimapScale,
+    y: (event.clientY - bounds.top) / minimapScale,
+  };
+  pan.value = {
+    x: canvas.clientWidth / 2 - target.x * zoom.value,
+    y: canvas.clientHeight / 2 - target.y * zoom.value,
+  };
+}
+
 /**
  * Starts a relationship gesture from a field endpoint.
  *
@@ -526,18 +583,23 @@ function loadLocal(): void {
   message.value = schema.loadLocalDraft() ?? "Local draft loaded.";
 }
 
-/** Fits every table into the visible canvas with a small margin. */
+/** Fits every movable diagram object into the visible canvas with a small margin. */
 function fitView(): void {
   const canvas: HTMLElement | null = canvasRef.value;
+  const bounds: DiagramRect[] = [
+    ...schema.tables.map((table: SchemaTableModel): DiagramRect => ({ x: table.x, y: table.y, width: table.width, height: 49 + table.fields.length * 35 })),
+    ...schema.areas.map((area: SchemaAreaModel): DiagramRect => ({ x: area.x, y: area.y, width: area.width, height: area.height })),
+    ...schema.notes.map((note: SchemaNoteModel): DiagramRect => ({ x: note.x, y: note.y, width: note.width, height: note.height })),
+  ];
 
-  if (!canvas || schema.tables.length === 0)
+  if (!canvas || bounds.length === 0)
     return;
 
-  const minX: number = Math.min(...schema.tables.map((table: SchemaTableModel) => table.x));
-  const minY: number = Math.min(...schema.tables.map((table: SchemaTableModel) => table.y));
-  const maxX: number = Math.max(...schema.tables.map((table: SchemaTableModel) => table.x + table.width));
-  const maxY: number = Math.max(...schema.tables.map((table: SchemaTableModel) => table.y + 180));
-  zoom.value = Math.min(1.3, Math.max(.45, Math.min((canvas.clientWidth - 100) / (maxX - minX), (canvas.clientHeight - 100) / (maxY - minY))));
+  const minX: number = Math.min(...bounds.map((rect: DiagramRect) => rect.x));
+  const minY: number = Math.min(...bounds.map((rect: DiagramRect) => rect.y));
+  const maxX: number = Math.max(...bounds.map((rect: DiagramRect) => rect.x + rect.width));
+  const maxY: number = Math.max(...bounds.map((rect: DiagramRect) => rect.y + rect.height));
+  zoom.value = Math.min(1.3, Math.max(.45, Math.min((canvas.clientWidth - 100) / Math.max(1, maxX - minX), (canvas.clientHeight - 100) / Math.max(1, maxY - minY))));
   pan.value = { x: (canvas.clientWidth - (maxX + minX) * zoom.value) / 2, y: (canvas.clientHeight - (maxY + minY) * zoom.value) / 2 };
 }
 
@@ -594,10 +656,26 @@ function handleKeydown(event: KeyboardEvent): void {
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement)
     return;
 
+  if (event.code === "Space") { event.preventDefault(); spacePressed.value = true; return; }
+
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? schema.redo() : schema.undo(); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveLocal(); return; }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); schema.selectElements([...schema.areas.map((area: SchemaAreaModel): ElementReference => ({ type: "area", id: area.id })), ...schema.tables.map((table: SchemaTableModel): ElementReference => ({ type: "table", id: table.id })), ...schema.notes.map((note: SchemaNoteModel): ElementReference => ({ type: "note", id: note.id }))], false); return; }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c") { event.preventDefault(); const count: number = schema.copySelectedElements(); message.value = count > 0 ? `${count} element${count === 1 ? "" : "s"} copied.` : "Select a table, area, or note to copy."; return; }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") { event.preventDefault(); const pasted: ElementReference[] = schema.pasteSelectedElements(); message.value = pasted.length > 0 ? `${pasted.length} element${pasted.length === 1 ? "" : "s"} pasted.` : "Nothing has been copied."; return; }
+  if ((event.ctrlKey || event.metaKey) && event.key === "0") { event.preventDefault(); resetView(); return; }
   if (event.key === "Delete" || event.key === "Backspace") { schema.deleteSelectedElements(); return; }
+  if (event.key.startsWith("Arrow")) { event.preventDefault(); const step: number = event.shiftKey ? 10 : 1; const delta: DiagramPoint = { x: event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, y: event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0 }; schema.moveSelectedElements(delta, true); return; }
+  if (event.key === "Escape") { relationMode.value = false; relationDrag.value = null; selection.value = null; schema.selectElements([], false); return; }
+  if (event.key === "+" || event.key === "=") { event.preventDefault(); setZoom(zoom.value * 1.1); return; }
+  if (event.key === "-") { event.preventDefault(); setZoom(zoom.value * .9); return; }
   if (event.key.toLowerCase() === "f") fitView();
+}
+
+/** Ends temporary spacebar panning mode. */
+function handleKeyup(event: KeyboardEvent): void {
+  if (event.code === "Space")
+    spacePressed.value = false;
 }
 
 /** Resolves a stored relationship into its current SVG geometry. */
@@ -613,7 +691,10 @@ function toRenderableRelation(relation: SchemaRelation): RenderableRelation | nu
   const sourceOnLeft: boolean = sourceTable.x <= targetTable.x;
   const start: DiagramPoint = { x: sourceTable.x + (sourceOnLeft ? sourceTable.width : 0), y: sourceTable.y + 73 + sourceIndex * 35 };
   const end: DiagramPoint = { x: targetTable.x + (sourceOnLeft ? 0 : targetTable.width), y: targetTable.y + 73 + targetIndex * 35 };
-  const middleX: number = (start.x + end.x) / 2;
+  const peerRelations: SchemaRelation[] = schema.relations.filter((item: SchemaRelation) => (item.sourceTableId === relation.sourceTableId && item.targetTableId === relation.targetTableId) || (item.sourceTableId === relation.targetTableId && item.targetTableId === relation.sourceTableId));
+  const peerIndex: number = peerRelations.findIndex((item: SchemaRelation) => item.id === relation.id);
+  const laneOffset: number = (peerIndex - (peerRelations.length - 1) / 2) * 22;
+  const middleX: number = (start.x + end.x) / 2 + laneOffset;
 
   const paths: string[] = relation.sourceFieldIds.map((sourceFieldId: string, index: number) => {
     const sourceFieldIndex: number = sourceTable.fields.findIndex((field: SchemaField) => field.id === sourceFieldId);
@@ -636,15 +717,24 @@ onBeforeUnmount(() => {
   relationDrag.value = null;
   areaResize.value = null;
   noteResize.value = null;
+  canvasResizeObserver?.disconnect();
 });
 
-onMounted(() => window.addEventListener("keydown", handleKeydown));
-onBeforeUnmount(() => window.removeEventListener("keydown", handleKeydown));
+onMounted(() => {
+  window.addEventListener("keydown", handleKeydown);
+  window.addEventListener("keyup", handleKeyup);
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+  canvasResizeObserver = new ResizeObserver((entries: ResizeObserverEntry[]) => { const bounds: DOMRectReadOnly | undefined = entries[0]?.contentRect; if (bounds) canvasSize.value = { x: bounds.width, y: bounds.height }; });
+
+  if (canvasRef.value)
+    canvasResizeObserver.observe(canvasRef.value);
+});
+onBeforeUnmount(() => { window.removeEventListener("keydown", handleKeydown); window.removeEventListener("keyup", handleKeyup); document.removeEventListener("fullscreenchange", handleFullscreenChange); });
 watch(() => schema.navigationRequest.sequence, (): void => { const reference: ElementReference | null = schema.navigationRequest.reference; if (reference) revealElement(reference); });
 </script>
 
 <template>
-  <section ref="canvasRef" class="schema-canvas" @pointerdown.self="beginPan" @pointermove="handlePointerMove" @pointerup="endPointerGesture" @pointercancel="endPointerGesture" @wheel.prevent="handleWheel">
+  <section ref="canvasRef" class="schema-canvas" :class="{ 'is-pan-ready': spacePressed, 'is-panning': panning }" @pointerdown.self="beginPan" @pointermove="handlePointerMove" @pointerup="endPointerGesture" @pointercancel="endPointerGesture" @wheel.prevent="handleWheel" @contextmenu.prevent>
     <div class="schema-canvas__layer" :style="{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }">
       <svg class="schema-canvas__relations" width="2200" height="1400" aria-label="Database table relationships">
         <g v-for="item in relations" :key="item.relation.id" class="schema-relation" :class="{ 'is-selected': schema.selectedRelationId === item.relation.id }" @click.stop="schema.selectRelation(item.relation.id)">
@@ -666,6 +756,10 @@ watch(() => schema.navigationRequest.sequence, (): void => { const reference: El
       <button type="button" :class="{ 'is-active': relationMode }" @click="toggleRelationMode">{{ relationMode ? (relationDrag ? "Drag to target field" : "Drag from source field") : "Create relation" }}</button>
       <button type="button" @click="schema.autoArrange">Auto arrange</button>
       <button type="button" @click="fitView">Fit view</button>
+      <button type="button" aria-label="Zoom out" title="Zoom out (-)" @click="setZoom(zoom * .9)">−</button>
+      <button type="button" aria-label="Reset zoom" title="Reset view (Ctrl+0)" @click="resetView">{{ Math.round(zoom * 100) }}%</button>
+      <button type="button" aria-label="Zoom in" title="Zoom in (+)" @click="setZoom(zoom * 1.1)">+</button>
+      <button type="button" @click="toggleFullscreen">{{ isFullscreen ? "Exit fullscreen" : "Fullscreen" }}</button>
       <button type="button" :disabled="schema.selectedTableIds.length < 2" @click="schema.arrangeSelected('left')">Align left</button>
       <button type="button" :disabled="schema.selectedTableIds.length < 2" @click="schema.arrangeSelected('top')">Align top</button>
       <button type="button" :disabled="schema.selectedTableIds.length < 3" @click="schema.arrangeSelected('horizontal')">Distribute</button>
@@ -681,12 +775,16 @@ watch(() => schema.navigationRequest.sequence, (): void => { const reference: El
       <button type="button" @click="downloadSvg">Export SVG</button>
       <button type="button" @click="exportPng">Export PNG</button>
       <button type="button" @click="downloadMermaid">Export Mermaid</button>
-      <output>{{ Math.round(zoom * 100) }}%</output>
     </div>
     <input ref="importInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importJson" />
     <input ref="dbmlInput" class="visually-hidden" type="file" accept=".dbml,text/plain" @change="importDbml" />
     <input ref="sqlInput" class="visually-hidden" type="file" accept=".sql,text/plain" @change="importSql" />
-    <aside class="schema-minimap" aria-label="Diagram minimap"><i v-for="table in schema.tables" :key="table.id" :class="{ 'is-selected': schema.selectedTableIds.includes(table.id) }" :style="{ left: `${table.x * .08}px`, top: `${table.y * .08}px`, width: '21px', height: `${Math.max(8, table.fields.length * 3 + 4)}px`, background: table.color }" /></aside>
+    <aside class="schema-minimap" aria-label="Diagram minimap" title="Click to navigate" @pointerdown.stop="navigateMinimap">
+      <span v-for="area in schema.areas" :key="`area:${area.id}`" class="schema-minimap__area" :style="{ left: `${area.x * minimapScale}px`, top: `${area.y * minimapScale}px`, width: `${area.width * minimapScale}px`, height: `${area.height * minimapScale}px`, borderColor: area.color }" />
+      <i v-for="table in schema.tables" :key="table.id" :class="{ 'is-selected': schema.selectedTableIds.includes(table.id) }" :style="{ left: `${table.x * minimapScale}px`, top: `${table.y * minimapScale}px`, width: `${table.width * minimapScale}px`, height: `${Math.max(8, (49 + table.fields.length * 35) * minimapScale)}px`, background: table.color }" />
+      <span v-for="note in schema.notes" :key="`note:${note.id}`" class="schema-minimap__note" :style="{ left: `${note.x * minimapScale}px`, top: `${note.y * minimapScale}px`, width: `${note.width * minimapScale}px`, height: `${note.height * minimapScale}px`, background: note.color }" />
+      <b class="schema-minimap__viewport" :style="minimapViewportStyle" />
+    </aside>
     <p v-if="message" class="schema-canvas__message">{{ message }}</p>
   </section>
 </template>

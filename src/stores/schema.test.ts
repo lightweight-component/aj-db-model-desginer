@@ -268,4 +268,48 @@ describe("schema store", () => {
     schema.locateElement({ type: "table", id: second.id }, true);
     expect(schema.selectedTableIds).toEqual(expect.arrayContaining([first.id, second.id]));
   });
+
+  /**
+   * Verifies clipboard paste remaps tables, fields, indexes, and internal relations.
+   */
+  it("copies and pastes a connected table selection", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    const originalTableIds: Set<string> = new Set(schema.tables.map((table: SchemaTable) => table.id));
+    const initialRelationCount: number = schema.relations.length;
+    schema.selectElements(schema.tables.map((table: SchemaTable) => ({ type: "table", id: table.id })), false);
+
+    expect(schema.copySelectedElements()).toBe(2);
+
+    const pasted = schema.pasteSelectedElements({ x: 50, y: 40 });
+    const pastedTables: SchemaTable[] = schema.tables.filter((table: SchemaTable) => !originalTableIds.has(table.id));
+
+    expect(pasted).toHaveLength(2);
+    expect(pastedTables).toHaveLength(2);
+    expect(schema.relations).toHaveLength(initialRelationCount + 1);
+    expect(schema.relations.at(-1)?.sourceTableId).toBe(pastedTables.find((table: SchemaTable) => table.name.startsWith("orders"))?.id);
+    expect(schema.relations.at(-1)?.targetFieldIds[0]).toBe(pastedTables.find((table: SchemaTable) => table.name.startsWith("users"))?.fields[0].id);
+
+    schema.undo();
+    expect(schema.tables).toHaveLength(2);
+    expect(schema.relations).toHaveLength(initialRelationCount);
+  });
+
+  /**
+   * Verifies copied areas and notes receive fresh identities and unlocked offsets.
+   */
+  it("copies and pastes mixed canvas annotations", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    const area = schema.addArea({ x: 10, y: 20 });
+    const note = schema.addNote({ x: 30, y: 40 });
+    schema.updateArea(area.id, { locked: true });
+    schema.updateNote(note.id, { locked: true });
+    schema.selectElements([{ type: "area", id: area.id }, { type: "note", id: note.id }], false);
+    schema.copySelectedElements();
+    schema.pasteSelectedElements();
+
+    expect(schema.areas).toHaveLength(2);
+    expect(schema.notes).toHaveLength(2);
+    expect(schema.areas[1]).toMatchObject({ x: 42, y: 52, locked: false });
+    expect(schema.notes[1]).toMatchObject({ x: 62, y: 72, locked: false });
+  });
 });

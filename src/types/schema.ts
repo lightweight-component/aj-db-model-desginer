@@ -19,6 +19,7 @@ export interface SchemaEnum {
   id: string;
   name: string;
   values: string[];
+  comment: string;
 }
 
 /** A reusable named type built on a database-specific base type. */
@@ -26,6 +27,10 @@ export interface SchemaCustomType {
   id: string;
   name: string;
   baseType: string;
+  length: number | null;
+  precision: number | null;
+  scale: number | null;
+  comment: string;
 }
 
 /** A free-form annotation placed on the diagram canvas. */
