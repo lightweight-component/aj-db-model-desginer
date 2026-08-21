@@ -10,7 +10,7 @@ AJ DB Model Designer is an online database schema designer built on Vue 3 + Type
 - **Relationship Diagram**: Intuitively display relationships between tables (supports various cardinality types)
 - **SQL Preview**: Real-time generation of CREATE TABLE SQL for different database dialects
 - **SQL Import**: Quickly import table structures from existing SQL definitions
-- **Multi-Dialect Support**: MySQL, PostgreSQL, SQLite, SQL Server, etc.
+- **Multi-Dialect Support**: Generic, MySQL, MariaDB, PostgreSQL, SQL Server, Oracle, and SQLite.
 - **Data Export**: Supports exporting relationship diagrams in SVG format
 - **Local Drafts**: Automatically saves design progress to prevent data loss
 - **Type Management**: Custom types and type alias support
@@ -100,9 +100,12 @@ Table relationship definition, including source field, target field, relationshi
 
 Supported database dialects:
 - `mysql`
+- `mariadb`
 - `postgresql`
 - `sqlite`
-- `mssql`
+- `sqlserver`
+- `oracle`
+- `generic`
 
 ## Usage Instructions
 
@@ -115,7 +118,7 @@ Supported database dialects:
 ### Establish Relationship
 
 1. Drag source table field to target table field
-2. Select relationship type (One-to-One, One-to-Many, Many-to-Many)
+2. Select relationship type (One-to-One, One-to-Many, Many-to-One)
 3. Configure cascade operations (ON DELETE / ON UPDATE)
 
 ### Preview SQL
@@ -135,9 +138,9 @@ You can export the current design diagram as an SVG vector image for documentati
 | Command | Description |
 |------|------|
 | `pnpm dev` | Start development server |
+| `pnpm install` | Install dependencies |
 | `pnpm build` | Build production version |
-| `pnpm preview` | Preview production build |
-| `pnpm lint` | Code check |
+| `pnpm check` | Run Biome checks |
 | `pnpm test` | Run unit tests |
 
 ## Browser Support
@@ -149,7 +152,7 @@ You can export the current design diagram as an SVG vector image for documentati
 
 ## License
 
-This project is open source under the MIT License.
+This project is open source under the LGPL-2.1 License (as stated in the included `LICENSE` file).
 
 ## Contributing Guide
 
@@ -161,5 +164,5 @@ This project is open source under the MIT License.
 
 ## Contact Information
 
-- Project URL: https://gitee.com/lightweight-components/aj-db-model-desginer
-- Issue Feedback: https://gitee.com/lightweight-components/aj-db-model-desginer/issues
+- Project URL: https://gitee.com/lightweight-components/aj-db-model-designer
+- Issue Feedback: https://gitee.com/lightweight-components/aj-db-model-designer/issues

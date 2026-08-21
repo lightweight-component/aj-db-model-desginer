@@ -1,5 +1,3 @@
-
-
 # AJ DB Model Designer
 
 ## 简介
@@ -12,7 +10,7 @@ AJ DB Model Designer 是一个基于 Vue 3 + TypeScript 构建的在线数据库
 - **关系图绘制**：直观展示表间关联关系（支持多种基数类型）
 - **SQL 预览**：实时生成各数据库方言的建表 SQL
 - **SQL 导入**：支持从现有 SQL 定义快速导入表结构
-- **多方言支持**：MySQL、PostgreSQL、SQLite、SQL Server 等
+- **多方言支持**：Generic、MySQL、MariaDB、PostgreSQL、SQL Server、Oracle 及 SQLite
 - **数据导出**：支持 SVG 格式的关系图导出
 - **本地草稿**：自动保存设计进度，防止数据丢失
 - **类型管理**：自定义类型和类型别名支持
@@ -102,9 +100,12 @@ src/
 
 支持的数据库方言：
 - `mysql`
+- `mariadb`
 - `postgresql`
 - `sqlite`
-- `mssql`
+- `sqlserver`
+- `oracle`
+- `generic`
 
 ## 使用说明
 
@@ -117,7 +118,7 @@ src/
 ### 建立关系
 
 1. 拖拽源表字段到目标表字段
-2. 选择关系类型（一对一、一对多、多对多）
+2. 选择关系类型（一对一、一对多、多对一）
 3. 配置级联操作（ON DELETE / ON UPDATE）
 
 ### 预览 SQL
@@ -137,9 +138,9 @@ src/
 | 命令 | 描述 |
 |------|------|
 | `pnpm dev` | 启动开发服务器 |
+| `pnpm install` | 安装依赖 |
 | `pnpm build` | 构建生产版本 |
-| `pnpm preview` | 预览生产构建 |
-| `pnpm lint` | 代码检查 |
+| `pnpm check` | 运行代码校验（Biome） |
 | `pnpm test` | 运行单元测试 |
 
 ## 浏览器支持
@@ -151,7 +152,7 @@ src/
 
 ## 许可证
 
-本项目采用 MIT License 开源授权。
+本项目采用 LGPL-2.1 许可证（与根目录 `LICENSE` 文件一致）。
 
 ## 贡献指南
 
@@ -163,5 +164,5 @@ src/
 
 ## 联系方式
 
-- 项目地址：https://gitee.com/lightweight-components/aj-db-model-desginer
-- 问题反馈：https://gitee.com/lightweight-components/aj-db-model-desginer/issues
+- 项目地址：https://gitee.com/lightweight-components/aj-db-model-designer
+- 问题反馈：https://gitee.com/lightweight-components/aj-db-model-designer/issues
