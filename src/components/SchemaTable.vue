@@ -78,39 +78,24 @@ function handleFieldPointerDown(event: PointerEvent, field: SchemaField): void {
 </script>
 
 <template>
-  <article
-    class="schema-table"
-    :class="{ 'is-selected': selected }"
+  <article class="schema-table" :class="{ 'is-selected': selected }"
     :style="{ left: `${table.x}px`, top: `${table.y}px`, width: `${table.width}px`, '--table-color': table.color }"
-    @pointerdown.stop="handlePointerDown"
-  >
+    @pointerdown.stop="handlePointerDown">
     <header class="schema-table__header">
       <span class="schema-table__dot" />
       <strong>{{ table.name }}</strong>
       <small>{{ table.fields.length }} fields</small>
     </header>
-    <button
-      v-if="!table.collapsed"
-      v-for="(field, index) in table.fields"
-      :key="field.id"
-      class="schema-table__field"
+    <button v-if="!table.collapsed" v-for="(field, index) in table.fields" :key="field.id" class="schema-table__field"
       :class="{
         'is-link-source': linkSourceKey === fieldKey(field),
         'is-link-target': linkTargetKey === fieldKey(field),
         'is-link-target-valid': linkTargetKey === fieldKey(field) && linkTargetValid,
         'is-link-target-invalid': linkTargetKey === fieldKey(field) && !linkTargetValid,
         'is-linking': linking,
-      }"
-      :data-table-id="table.id"
-      :data-field-id="field.id"
-      type="button"
-      :draggable="!linking && !table.locked"
-      @dragstart.stop="beginFieldDrag(field.id)"
-      @dragend="endFieldDrag"
-      @dragover.prevent
-      @drop.stop="dropField(index)"
-      @pointerdown.stop="handleFieldPointerDown($event, field)"
-    >
+      }" :data-table-id="table.id" :data-field-id="field.id" type="button" :draggable="!linking && !table.locked"
+      @dragstart.stop="beginFieldDrag(field.id)" @dragend="endFieldDrag" @dragover.prevent @drop.stop="dropField(index)"
+      @pointerdown.stop="handleFieldPointerDown($event, field)">
       <span class="schema-table__field-name">
         <b v-if="field.primary">PK</b>
         <b v-else-if="field.unique">UQ</b>

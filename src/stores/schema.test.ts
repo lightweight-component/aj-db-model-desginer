@@ -1,6 +1,8 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { SchemaTable } from "../types/schema";
+import type { SchemaDiagram, SchemaTable } from "../types/schema";
+import { exportDbml, parseDbml } from "../utils/dbml";
+import { schemaTemplates } from "../data/schemaTemplates";
 import { useSchemaStore } from "./schema";
 
 describe("schema store", () => {
@@ -61,6 +63,90 @@ describe("schema store", () => {
     expect(error).toBeNull();
     expect(target.tables).toEqual(source.tables);
     expect(target.relations).toEqual(source.relations);
+  });
+
+  /**
+   * Verifies blank document creation and document naming semantics.
+   */
+  it("creates and renames a blank diagram", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+
+    schema.newDiagram("Customer model");
+
+    expect(schema.diagramName).toBe("Customer model");
+    expect(schema.tables).toHaveLength(0);
+    expect(schema.relations).toHaveLength(0);
+    expect(schema.canUndo).toBe(false);
+    expect(schema.renameDiagram("  Billing model  ")).toBeNull();
+    expect(schema.diagramName).toBe("Billing model");
+    expect(schema.renameDiagram("   ")).toBe("Diagram name cannot be empty.");
+
+    schema.undo();
+
+    expect(schema.diagramName).toBe("Customer model");
+  });
+
+  /**
+   * Verifies a starter template becomes an independent new document.
+   */
+  it("creates a new diagram from a template", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    const template = schemaTemplates().find((item) => item.id === "commerce");
+
+    expect(template).toBeTruthy();
+    schema.newDiagramFromTemplate(template?.diagram as SchemaDiagram);
+
+    expect(schema.diagramName).toBe("Online store");
+    expect(schema.dialect).toBe("mysql");
+    expect(schema.tables).toHaveLength(4);
+    expect(schema.relations).toHaveLength(3);
+    expect(schema.canUndo).toBe(false);
+    expect(JSON.parse(schema.exportJson())).toMatchObject({ formatVersion: 2, name: "Online store" });
+  });
+
+  /**
+   * Verifies conventional foreign-key names can be reviewed and created as one history command.
+   */
+  it("infers and batch creates relationships", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    schema.newDiagram();
+    const users: SchemaTable = schema.addTable({ x: 120, y: 120 });
+    const orders: SchemaTable = schema.addTable({ x: 480, y: 120 });
+
+    schema.updateTable(users.id, { name: "users" });
+    schema.updateTable(orders.id, { name: "orders" });
+    schema.addField(orders.id);
+    const userIdFieldId: string = orders.fields[1].id;
+    schema.updateField(orders.id, userIdFieldId, { name: "user_id", type: "INTEGER", nullable: false });
+
+    const candidates = schema.suggestAutoRelations();
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({ sourceTableId: orders.id, sourceFieldId: userIdFieldId, targetTableId: users.id, targetFieldId: users.fields[0].id, score: 100 });
+    expect(schema.createAutoRelations(candidates)).toBe(1);
+    expect(schema.relations).toHaveLength(1);
+    expect(schema.relations[0]).toMatchObject({ sourceTableId: orders.id, targetTableId: users.id, cardinality: "many-to-one" });
+    expect(schema.suggestAutoRelations()).toHaveLength(0);
+
+    schema.undo();
+
+    expect(schema.relations).toHaveLength(0);
+  });
+
+  /**
+   * Verifies persisted canvas preferences are undoable and exported with the diagram.
+   */
+  it("updates visual editor settings", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+
+    schema.setEditorSettings({ gridVisible: false, snapToGrid: true, relationRouteStyle: "curved", showCardinality: false });
+
+    expect(schema.editorSettings).toMatchObject({ gridVisible: false, snapToGrid: true, relationRouteStyle: "curved", showCardinality: false });
+    expect(JSON.parse(schema.exportJson())).toMatchObject({ settings: schema.editorSettings });
+
+    schema.undo();
+
+    expect(schema.editorSettings).toMatchObject({ gridVisible: true, snapToGrid: false, relationRouteStyle: "orthogonal", showCardinality: true });
   });
 
   /**
@@ -311,5 +397,72 @@ describe("schema store", () => {
     expect(schema.notes).toHaveLength(2);
     expect(schema.areas[1]).toMatchObject({ x: 42, y: 52, locked: false });
     expect(schema.notes[1]).toMatchObject({ x: 62, y: 72, locked: false });
+  });
+
+  /**
+   * Verifies enum value management, reference-aware renaming, deletion, and undo.
+   */
+  it("manages enums and their field references", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    const table: SchemaTable = schema.tables[0];
+    const fieldId: string = table.fields[1].id;
+    schema.addEnum();
+    const item = schema.enums[0];
+    schema.updateEnum(item.id, { name: "user_status", values: ["active", "disabled", "ACTIVE"] });
+    schema.updateField(table.id, fieldId, { type: "user_status" });
+
+    expect(item.values).toEqual(["active", "disabled"]);
+    expect(schema.schemaTypeUsage("USER_STATUS")).toBe(1);
+    expect(schema.updateEnumValue(item.id, 1, "active")).toContain("unique");
+
+    schema.addEnumValue(item.id);
+    schema.moveEnumValue(item.id, 2, -1);
+    expect(item.values[1]).toBe("value_3");
+
+    schema.updateEnum(item.id, { name: "account_status" });
+    expect(table.fields[1].type).toBe("account_status");
+
+    schema.deleteEnum(item.id);
+    expect(table.fields[1].type).toBe("VARCHAR(255)");
+
+    schema.undo();
+    expect(schema.enums[0].name).toBe("account_status");
+    expect(schema.tables[0].fields[1].type).toBe("account_status");
+  });
+
+  /**
+   * Verifies parameterized custom types rename and resolve references safely.
+   */
+  it("manages parameterized custom type references", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    const table: SchemaTable = schema.tables[0];
+    const fieldId: string = table.fields[1].id;
+    schema.addCustomType();
+    const item = schema.customTypes[0];
+    schema.updateCustomType(item.id, { name: "money", baseType: "DECIMAL", length: null, precision: 12, scale: 4, comment: "Currency amount" });
+    schema.updateField(table.id, fieldId, { type: "money" });
+
+    schema.updateCustomType(item.id, { name: "currency_amount", scale: 20 });
+    expect(item.scale).toBe(12);
+    expect(table.fields[1].type).toBe("currency_amount");
+
+    schema.deleteCustomType(item.id);
+    expect(table.fields[1].type).toBe("DECIMAL(12,12)");
+  });
+
+  /**
+   * Verifies DBML exchange retains enums and parameterized custom definitions.
+   */
+  it("round trips schema types through DBML", (): void => {
+    const schema: ReturnType<typeof useSchemaStore> = useSchemaStore();
+    schema.addEnum();
+    schema.updateEnum(schema.enums[0].id, { name: "status", values: ["active", "disabled"] });
+    schema.addCustomType();
+    schema.updateCustomType(schema.customTypes[0].id, { name: "money", baseType: "DECIMAL", length: null, precision: 14, scale: 3 });
+    const diagram: SchemaDiagram = JSON.parse(schema.exportJson()) as SchemaDiagram;
+    const imported: SchemaDiagram = parseDbml(exportDbml(diagram));
+
+    expect(imported.enums[0]).toMatchObject({ name: "status", values: ["active", "disabled"] });
+    expect(imported.customTypes[0]).toMatchObject({ name: "money", baseType: "DECIMAL", precision: 14, scale: 3 });
   });
 });

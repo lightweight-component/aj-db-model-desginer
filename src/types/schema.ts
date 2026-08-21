@@ -8,11 +8,23 @@ export interface SchemaField {
   unique: boolean;
   comment: string;
   defaultValue: string;
+  autoIncrement?: boolean;
+  unsigned?: boolean;
+  checkExpression?: string;
 }
 
 /** Database engines supported by the field type catalogue. */
-export type DatabaseDialect = "mysql" | "postgresql" | "sqlserver" | "sqlite";
+export type DatabaseDialect = "generic" | "mysql" | "mariadb" | "postgresql" | "sqlserver" | "sqlite" | "oracle";
 export type ForeignKeyAction = "NO ACTION" | "RESTRICT" | "CASCADE" | "SET NULL" | "SET DEFAULT";
+export type RelationRouteStyle = "orthogonal" | "straight" | "curved";
+
+/** Visual preferences persisted with a diagram document. */
+export interface DiagramEditorSettings {
+  gridVisible: boolean;
+  snapToGrid: boolean;
+  relationRouteStyle: RelationRouteStyle;
+  showCardinality: boolean;
+}
 
 /** A reusable named enum value set. */
 export interface SchemaEnum {
@@ -104,8 +116,21 @@ export interface SchemaRelation {
   onUpdate: ForeignKeyAction;
 }
 
+/** A safe, name-based foreign-key relationship suggestion. */
+export interface AutoRelationCandidate {
+  sourceTableId: string;
+  sourceFieldId: string;
+  targetTableId: string;
+  targetFieldId: string;
+  score: number;
+  reason: string;
+}
+
 /** Serializable editor data, suitable for persistence or export later. */
 export interface SchemaDiagram {
+  formatVersion?: number;
+  name?: string;
+  settings?: DiagramEditorSettings;
   dialect: DatabaseDialect;
   enums: SchemaEnum[];
   customTypes: SchemaCustomType[];

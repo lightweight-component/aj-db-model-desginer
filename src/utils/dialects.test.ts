@@ -17,4 +17,13 @@ describe("database dialect types", () => {
     expect(isTypeSupported("sqlite", "INTEGER")).toBe(true);
     expect(isTypeSupported("postgresql", "INT")).toBe(false);
   });
+
+  /**
+   * Verifies the Generic, MariaDB, and Oracle type catalogues expose native suggestions.
+   */
+  it("supports the additional database dialect catalogues", (): void => {
+    expect(isTypeSupported("generic", "INTEGER")).toBe(true);
+    expect(isTypeSupported("mariadb", "INTEGER")).toBe(true);
+    expect(isTypeSupported("oracle", "VARCHAR2(255)")).toBe(true);
+  });
 });

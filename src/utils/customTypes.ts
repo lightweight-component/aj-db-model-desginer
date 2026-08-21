@@ -20,3 +20,14 @@ export function customTypeDefinition(type: SchemaCustomType): string {
 
   return baseType;
 }
+
+/** Parses a concrete database type into editable custom-type parameters. */
+export function parseCustomTypeDefinition(id: string, name: string, definition: string, comment: string = ""): SchemaCustomType {
+  const match: RegExpMatchArray | null = definition.trim().match(/^(.+?)(?:\((\d+)(?:\s*,\s*(\d+))?\))?$/);
+  const baseType: string = match?.[1]?.trim() || "TEXT";
+  const first: number | null = match?.[2] ? Number(match[2]) : null;
+  const second: number | null = match?.[3] ? Number(match[3]) : null;
+  const decimal: boolean = second !== null || /^(DECIMAL|NUMERIC)$/i.test(baseType);
+
+  return { id, name, baseType, length: decimal ? null : first, precision: decimal ? first : null, scale: decimal ? second ?? 0 : null, comment };
+}

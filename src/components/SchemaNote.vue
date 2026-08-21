@@ -27,18 +27,27 @@ function beginDrag(event: PointerEvent, note: SchemaNote, selected: boolean): vo
 </script>
 
 <template>
-  <article class="schema-note" :class="{ 'is-selected': selected, 'is-locked': note.locked }" :style="{ left: `${note.x}px`, top: `${note.y}px`, width: `${note.width}px`, height: `${note.height}px`, background: note.color }" @pointerdown.stop="selectNote($event, note, selected)">
+  <article class="schema-note" :class="{ 'is-selected': selected, 'is-locked': note.locked }"
+    :style="{ left: `${note.x}px`, top: `${note.y}px`, width: `${note.width}px`, height: `${note.height}px`, background: note.color }"
+    @pointerdown.stop="selectNote($event, note, selected)">
     <header>
-      <button type="button" class="schema-note__drag-handle" :disabled="note.locked" aria-label="Move note" @pointerdown.stop="beginDrag($event, note, selected)">⠿</button>
-      <input :value="note.title" aria-label="Note title" @pointerdown.stop @change="emit('update', note.id, { title: ($event.target as HTMLInputElement).value })" />
+      <button type="button" class="schema-note__drag-handle" :disabled="note.locked" aria-label="Move note"
+        @pointerdown.stop="beginDrag($event, note, selected)">⠿</button>
+      <input :value="note.title" aria-label="Note title" @pointerdown.stop
+        @change="emit('update', note.id, { title: ($event.target as HTMLInputElement).value })" />
       <span v-if="note.locked">Locked</span>
     </header>
-    <textarea :value="note.text" aria-label="Note text" @pointerdown.stop="selectNote($event, note, selected)" @change="emit('update', note.id, { text: ($event.target as HTMLTextAreaElement).value })" />
+    <textarea :value="note.text" aria-label="Note text" @pointerdown.stop="selectNote($event, note, selected)"
+      @change="emit('update', note.id, { text: ($event.target as HTMLTextAreaElement).value })" />
     <template v-if="selected && !note.locked">
-      <button type="button" class="schema-note__resize is-top-left" aria-label="Resize note top left" @pointerdown.stop="emit('resizeStart', $event, note.id, 'top-left')" />
-      <button type="button" class="schema-note__resize is-top-right" aria-label="Resize note top right" @pointerdown.stop="emit('resizeStart', $event, note.id, 'top-right')" />
-      <button type="button" class="schema-note__resize is-bottom-left" aria-label="Resize note bottom left" @pointerdown.stop="emit('resizeStart', $event, note.id, 'bottom-left')" />
-      <button type="button" class="schema-note__resize is-bottom-right" aria-label="Resize note bottom right" @pointerdown.stop="emit('resizeStart', $event, note.id, 'bottom-right')" />
+      <button type="button" class="schema-note__resize is-top-left" aria-label="Resize note top left"
+        @pointerdown.stop="emit('resizeStart', $event, note.id, 'top-left')" />
+      <button type="button" class="schema-note__resize is-top-right" aria-label="Resize note top right"
+        @pointerdown.stop="emit('resizeStart', $event, note.id, 'top-right')" />
+      <button type="button" class="schema-note__resize is-bottom-left" aria-label="Resize note bottom left"
+        @pointerdown.stop="emit('resizeStart', $event, note.id, 'bottom-left')" />
+      <button type="button" class="schema-note__resize is-bottom-right" aria-label="Resize note bottom right"
+        @pointerdown.stop="emit('resizeStart', $event, note.id, 'bottom-right')" />
     </template>
   </article>
 </template>

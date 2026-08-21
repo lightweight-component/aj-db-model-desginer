@@ -8,14 +8,20 @@ export interface DialectDefinition {
 
 /** Type catalogues used for field suggestions and schema validation. */
 export const DIALECTS: Record<DatabaseDialect, DialectDefinition> = {
+  generic: { id: "generic", label: "Generic", types: ["SMALLINT", "INTEGER", "BIGINT", "DECIMAL(10,2)", "REAL", "DOUBLE", "BOOLEAN", "VARCHAR(255)", "TEXT", "DATE", "TIME", "TIMESTAMP", "BINARY", "BLOB", "UUID"] },
   mysql: { id: "mysql", label: "MySQL", types: ["TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL(10,2)", "FLOAT", "DOUBLE", "BOOLEAN", "VARCHAR(255)", "TEXT", "DATE", "DATETIME", "TIMESTAMP", "JSON", "BLOB", "UUID"] },
+  mariadb: { id: "mariadb", label: "MariaDB", types: ["TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL(10,2)", "FLOAT", "DOUBLE", "BOOLEAN", "VARCHAR(255)", "TEXT", "DATE", "DATETIME", "TIMESTAMP", "JSON", "BLOB", "UUID"] },
   postgresql: { id: "postgresql", label: "PostgreSQL", types: ["SMALLINT", "INTEGER", "BIGINT", "NUMERIC(10,2)", "REAL", "DOUBLE PRECISION", "BOOLEAN", "VARCHAR(255)", "TEXT", "DATE", "TIME", "TIMESTAMP", "TIMESTAMPTZ", "JSON", "JSONB", "BYTEA", "UUID"] },
   sqlserver: { id: "sqlserver", label: "SQL Server", types: ["TINYINT", "SMALLINT", "INT", "BIGINT", "DECIMAL(10,2)", "FLOAT", "BIT", "VARCHAR(255)", "NVARCHAR(255)", "TEXT", "DATE", "DATETIME2", "DATETIMEOFFSET", "UNIQUEIDENTIFIER", "VARBINARY(MAX)"] },
   sqlite: { id: "sqlite", label: "SQLite", types: ["INTEGER", "REAL", "TEXT", "BLOB", "NUMERIC", "BOOLEAN", "DATE", "DATETIME", "JSON"] },
+  oracle: { id: "oracle", label: "Oracle", types: ["NUMBER", "NUMBER(10,2)", "BINARY_FLOAT", "BINARY_DOUBLE", "VARCHAR2(255)", "NVARCHAR2(255)", "CLOB", "NCLOB", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "RAW(16)", "BLOB", "XMLTYPE"] },
 };
 
 const TYPE_ALIASES: Partial<Record<DatabaseDialect, Record<string, string>>> = {
   mysql: {
+    INTEGER: "INT",
+  },
+  mariadb: {
     INTEGER: "INT",
   },
 };
